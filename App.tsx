@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { ShoppingBag, Search, Menu, X, ArrowLeft, ChevronRight, Globe, Coffee, Palette, Shirt, ArrowRight as ArrowRightIcon, Loader2, Send, Download } from 'lucide-react';
+import { ShoppingBag, Search, Menu, X, ArrowLeft, ChevronRight, Globe, Coffee, Palette, Shirt, ArrowRight as ArrowRightIcon, Loader2, Send, Download, Share, PlusSquare } from 'lucide-react';
 import { Product, CartItem, Category, LanguageCode } from './types';
 import ProductList from './components/ProductList';
 import CartSidebar from './components/CartSidebar';
@@ -55,22 +55,41 @@ const AppContent: React.FC = () => {
   
   // PWA Install Prompt
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isIOS, setIsIOS] = useState(false);
+  const [showIOSInstall, setShowIOSInstall] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
+    // 1. Capture the event for Android/Chrome
     const handler = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
     };
     window.addEventListener('beforeinstallprompt', handler);
+
+    // 2. Detect iOS
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    setIsIOS(ios);
+
+    // 3. Check if already installed
+    const isStand = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+    setIsStandalone(isStand);
+
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
   const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setDeferredPrompt(null);
+    if (isIOS) {
+      setShowIOSInstall(true); // Open instructions for iOS
+    } else if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+      }
+    } else {
+        // Fallback or generic help
+        addToast("Install via your browser menu (Add to Home Screen)", "error");
     }
   };
 
@@ -389,11 +408,12 @@ const AppContent: React.FC = () => {
              </div>
            </div>
            
-           {deferredPrompt && (
-               <div className="pt-4 border-t border-stone-200">
+           {/* Install App - Mobile Menu Priority */}
+           {!isStandalone && (deferredPrompt || isIOS) && (
+               <div className="pt-4 border-t border-stone-200 pb-2">
                    <button 
                     onClick={() => { handleInstallClick(); setIsMobileMenuOpen(false); }}
-                    className="w-full bg-emerald-900 text-white py-3 rounded-lg flex items-center justify-center gap-2 font-bold shadow-md"
+                    className="w-full bg-emerald-900 text-white py-3 rounded-lg flex items-center justify-center gap-2 font-bold shadow-md animate-pulse"
                    >
                        <Download size={18} /> {t('install_app')}
                    </button>
@@ -717,7 +737,7 @@ const AppContent: React.FC = () => {
           <div className="flex gap-4 items-center">
               <span>{t('privacy_policy')}</span>
               <span>{t('terms_service')}</span>
-              {deferredPrompt && (
+              {!isStandalone && (deferredPrompt || isIOS) && (
                   <button 
                     onClick={handleInstallClick} 
                     className="flex items-center gap-1 text-gold-accent hover:text-white transition-colors font-bold"
@@ -728,6 +748,33 @@ const AppContent: React.FC = () => {
           </div>
         </div>
       </footer>
+
+      {/* iOS Install Instructions Modal */}
+      {showIOSInstall && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-stone-900/80 backdrop-blur-sm" onClick={() => setShowIOSInstall(false)}></div>
+            <div className="relative w-full max-w-sm bg-white rounded-xl shadow-2xl p-6 flex flex-col items-center animate-fade-in text-center">
+                <div className="w-16 h-16 bg-stone-100 rounded-2xl mb-4 flex items-center justify-center shadow-inner">
+                    <img src="https://placehold.co/192x192/009A44/FFFFFF/png?text=EM" alt="Icon" className="w-12 h-12 rounded-xl" />
+                </div>
+                <h3 className="font-serif font-bold text-xl text-stone-900 mb-2">Install Ethio Mosaic</h3>
+                <p className="text-sm text-stone-500 mb-6">Install this app on your iPhone for the best experience. It takes less than a minute.</p>
+                
+                <div className="w-full space-y-4 text-left bg-stone-50 p-4 rounded-lg border border-stone-100 mb-6">
+                    <div className="flex items-center gap-3">
+                        <Share className="text-blue-500" size={24} />
+                        <span className="text-sm text-stone-700">1. Tap the <span className="font-bold">Share</span> button in your browser menu.</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <PlusSquare className="text-stone-700" size={24} />
+                        <span className="text-sm text-stone-700">2. Scroll down and tap <span className="font-bold">Add to Home Screen</span>.</span>
+                    </div>
+                </div>
+
+                <Button onClick={() => setShowIOSInstall(false)}>Got it!</Button>
+            </div>
+        </div>
+      )}
 
       <CartSidebar 
         isOpen={isCartOpen} 
